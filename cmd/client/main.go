@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/c-bata/go-prompt"
@@ -16,8 +17,13 @@ var (
 func main() {
 	fmt.Printf("Build version: %s\nBuild date: %s\n", BuildVersion, BuildDate)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	executeFunc := customPrompt.NewExecutor(ctx, cancel)
+
 	p := prompt.New(
-		customPrompt.NewExecutor().Execute,
+		executeFunc,
 		customPrompt.NewCompleter().Complete,
 		prompt.OptionTitle("Gophkeeper"),
 		prompt.OptionPrefix(">>>"),

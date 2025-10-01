@@ -7,26 +7,22 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/smanhack/gophkeeper/pkg/crypt"
-	"github.com/smanhack/gophkeeper/pkg/jwt"
 )
 
-type JwtTokenCtx struct{}
+type (
+	JwtTokenCtx   struct{}
+	JwtMiddleware struct {
+		jwtManager         JWTManager
+		unProtectedMethods []string
+		crypter            Crypter
+	}
+)
 
-var _ Auther = (*JwtMiddleware)(nil)
-
-type JwtMiddleware struct {
-	jwtManager         jwt.Manager
-	unProtectedMethods []string
-	crypter            crypt.Crypter
-}
-
-func NewJwtMiddleware(j jwt.Manager, c crypt.Crypter) *JwtMiddleware {
+func NewJwtMiddleware(j JWTManager, c Crypter) *JwtMiddleware {
 	return &JwtMiddleware{
 		jwtManager:         j,
 		crypter:            c,
-		unProtectedMethods: []string{"/proto.User/Register", "/proto.User/Login"},
+		unProtectedMethods: []string{"/proto.Account/SignUp", "/proto.Account/Authenticate"},
 	}
 }
 

@@ -1,7 +1,19 @@
 package auth
 
-import "context"
+import (
+	"github.com/smanhack/gophkeeper/pkg/crypt"
+	"github.com/smanhack/gophkeeper/pkg/jwt"
+)
 
-type Auther interface {
-	Auth(ctx context.Context) (context.Context, error)
+type Crypter interface {
+	Decode(sha string) (string, error)
 }
+
+type JWTManager interface {
+	Decode(token string) (string, error)
+}
+
+var (
+	_ Crypter    = (*crypt.Сrypt)(nil)
+	_ JWTManager = (*jwt.JWT)(nil)
+)

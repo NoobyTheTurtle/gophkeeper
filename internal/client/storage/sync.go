@@ -1,49 +1,41 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/client/model"
-	"github.com/smanhack/gophkeeper/pkg/crypt"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
-
-type Syncer interface {
-	SyncAll()
-	SyncPassLoginData() error
-	SyncCardData() error
-	SyncTextData() error
-}
 
 type Sync struct {
 	storage         Memorier
 	dataVaultClient pb.DataVaultClient
-	glCtx           *model.GlobalContext
-	cr              crypt.Crypter
+	cr              Crypter
 }
 
 // NewSync - creates new Sync.
-func NewSync(s Memorier, sc pb.DataVaultClient, ctx *model.GlobalContext, cr crypt.Crypter) *Sync {
-	return &Sync{storage: s, dataVaultClient: sc, glCtx: ctx, cr: cr}
+func NewSync(s Memorier, sc pb.DataVaultClient, cr Crypter) *Sync {
+	return &Sync{storage: s, dataVaultClient: sc, cr: cr}
 }
 
-func (s *Sync) SyncAll() {
-	if err := s.SyncTextData(); err != nil {
+func (s *Sync) SyncAll(ctx context.Context) {
+	if err := s.SyncTextData(ctx); err != nil {
 		fmt.Println(err)
 	}
 
-	if err := s.SyncPassLoginData(); err != nil {
+	if err := s.SyncPassLoginData(ctx); err != nil {
 		fmt.Println(err)
 	}
 
-	if err := s.SyncCardData(); err != nil {
+	if err := s.SyncCardData(ctx); err != nil {
 		fmt.Println(err)
 	}
 }
 
-func (s *Sync) SyncTextData() error {
-	texts, err := s.dataVaultClient.QueryDataByCategory(s.glCtx.Ctx, &pb.QueryDataByCategoryRequest{TypeId: 2})
+func (s *Sync) SyncTextData(ctx context.Context) error {
+	texts, err := s.dataVaultClient.QueryDataByCategory(ctx, &pb.QueryDataByCategoryRequest{TypeId: 2})
 	if err != nil {
 		panic(err)
 	}
@@ -74,8 +66,8 @@ func (s *Sync) SyncTextData() error {
 }
 
 // SyncCardData - makes gRPC request to server and on success sets acquired records to MemoryStorage.CardSecrets.
-func (s *Sync) SyncCardData() error {
-	cards, err := s.dataVaultClient.QueryDataByCategory(s.glCtx.Ctx, &pb.QueryDataByCategoryRequest{TypeId: 4})
+func (s *Sync) SyncCardData(ctx context.Context) error {
+	cards, err := s.dataVaultClient.QueryDataByCategory(ctx, &pb.QueryDataByCategoryRequest{TypeId: 4})
 	if err != nil {
 		panic(err)
 	}
@@ -105,8 +97,8 @@ func (s *Sync) SyncCardData() error {
 	return nil
 }
 
-func (s *Sync) SyncPassLoginData() error {
-	lists, err := s.dataVaultClient.QueryDataByCategory(s.glCtx.Ctx, &pb.QueryDataByCategoryRequest{TypeId: 1})
+func (s *Sync) SyncPassLoginData(ctx context.Context) error {
+	lists, err := s.dataVaultClient.QueryDataByCategory(ctx, &pb.QueryDataByCategoryRequest{TypeId: 1})
 	if err != nil {
 		panic(err)
 	}

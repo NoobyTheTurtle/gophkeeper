@@ -30,7 +30,7 @@ func (m *migrationManager) Up() error {
 		}
 	}()
 
-	if err := migration.Up(); err != nil {
+	if err := migration.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("migration.Up error: %w", err)
 	}
 
@@ -76,7 +76,7 @@ func (m *migrationManager) UpTest() error {
 		}
 	}()
 
-	if err = migration.Up(); err != nil {
+	if err = migration.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("error in migrating db: %w", err)
 	}
 

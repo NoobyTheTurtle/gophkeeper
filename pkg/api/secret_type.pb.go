@@ -4,7 +4,7 @@
 // 	protoc        v6.32.0
 // source: secret_type.proto
 
-package proto
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -167,7 +167,7 @@ const file_secret_type_proto_rawDesc = "" +
 	"categories\x18\x01 \x03(\v2\x0f.proto.CategoryR\n" +
 	"categories2Y\n" +
 	"\fDataCategory\x12I\n" +
-	"\x0eListCategories\x12\x1a.proto.CategoryListRequest\x1a\x1b.proto.CategoryListResponseB*Z(github.com/smanhack/gophkeeper/api/protob\x06proto3"
+	"\x0eListCategories\x12\x1a.proto.CategoryListRequest\x1a\x1b.proto.CategoryListResponseB(Z&github.com/smanhack/gophkeeper/pkg/apib\x06proto3"
 
 var (
 	file_secret_type_proto_rawDescOnce sync.Once

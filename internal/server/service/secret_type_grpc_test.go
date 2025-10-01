@@ -5,14 +5,14 @@ import (
 	"net"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	storagemock "github.com/smanhack/gophkeeper/internal/server/storage/mock"
+	servicemock "github.com/smanhack/gophkeeper/internal/server/service/mock"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
 
 func Test_categoryHandler_ListCategories(t *testing.T) {
@@ -21,7 +21,7 @@ func Test_categoryHandler_ListCategories(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 
-	categoryMock := storagemock.NewMockCategoryServerStorage(ctl)
+	categoryMock := servicemock.NewMockCategoryServerStorage(ctl)
 
 	categoryMock.EXPECT().ListCategories(gomock.Any()).AnyTimes().Return(
 		[]model.DataCategory{
@@ -66,7 +66,7 @@ func Test_categoryHandler_RegisterService(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 
-	categoryMock := storagemock.NewMockCategoryServerStorage(ctl)
+	categoryMock := servicemock.NewMockCategoryServerStorage(ctl)
 
 	tests := []struct {
 		name string

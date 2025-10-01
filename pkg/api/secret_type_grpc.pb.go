@@ -4,7 +4,7 @@
 // - protoc             v6.32.0
 // source: secret_type.proto
 
-package proto
+package api
 
 import (
 	context "context"

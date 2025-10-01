@@ -11,6 +11,7 @@ LDFLAGS=-ldflags "-X main.BuildVersion=$(VERSION) -X main.BuildDate=$(BUILD_DATE
 # Директории
 BUILD_DIR=build
 PROTO_DIR=api/proto
+PROTO_OUTPUT_DIR=pkg/api
 MIGRATIONS_DIR=internal/server/migrations
 
 # База данных
@@ -135,13 +136,15 @@ proto: ## Генерировать protobuf код
 		echo "❌ Директория $(PROTO_DIR) не найдена"; \
 		exit 1; \
 	fi
+	@echo "Создание директории $(PROTO_OUTPUT_DIR) если не существует..."
+	@mkdir -p $(PROTO_OUTPUT_DIR)
 	@echo "Удаление старых сгенерированных файлов..."
-	@find $(PROTO_DIR) -name "*.pb.go" -delete 2>/dev/null || true
+	@find $(PROTO_OUTPUT_DIR) -name "*.pb.go" -delete 2>/dev/null || true
 	@echo "Генерация Go кода из protobuf схем..."
 	protoc --proto_path=$(PROTO_DIR) \
 		--proto_path=/usr/local/include \
-		--go_out=$(PROTO_DIR) \
-		--go-grpc_out=$(PROTO_DIR) \
+		--go_out=$(PROTO_OUTPUT_DIR) \
+		--go-grpc_out=$(PROTO_OUTPUT_DIR) \
 		--go_opt=paths=source_relative \
 		--go-grpc_opt=paths=source_relative \
 		$(PROTO_DIR)/user.proto \

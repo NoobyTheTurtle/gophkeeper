@@ -11,24 +11,21 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/server/middleware/auth"
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	"github.com/smanhack/gophkeeper/internal/server/storage"
-	"github.com/smanhack/gophkeeper/pkg/crypt"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 	"github.com/smanhack/gophkeeper/pkg/errorx"
-	"github.com/smanhack/gophkeeper/pkg/jwt"
 )
 
 type accountHandler struct {
 	pb.UnimplementedAccountServer
 
-	storage    storage.AccountServerStorage
-	jwtManager jwt.Manager
-	crypter    crypt.Crypter
+	storage    AccountServerStorage
+	jwtManager JWTManager
+	crypter    Crypter
 }
 
-func NewAccountHandler(s storage.AccountServerStorage, m jwt.Manager, c crypt.Crypter) *accountHandler {
+func NewAccountHandler(s AccountServerStorage, m JWTManager, c Crypter) *accountHandler {
 	return &accountHandler{
 		storage:    s,
 		jwtManager: m,

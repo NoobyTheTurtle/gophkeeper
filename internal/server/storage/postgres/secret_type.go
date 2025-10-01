@@ -7,10 +7,7 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	"github.com/smanhack/gophkeeper/internal/server/storage"
 )
-
-var _ storage.CategoryServerStorage = (*CategoryStore)(nil)
 
 type CategoryStore struct {
 	conn *pgx.Conn

@@ -8,7 +8,6 @@ require (
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
-	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jackc/pgconn v1.14.3
@@ -16,6 +15,7 @@ require (
 	github.com/jackc/pgx/v4 v4.18.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.23.0
 	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2

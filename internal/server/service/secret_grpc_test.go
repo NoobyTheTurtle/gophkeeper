@@ -7,22 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/server/middleware/auth"
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	storagemock "github.com/smanhack/gophkeeper/internal/server/storage/mock"
-	cryptmock "github.com/smanhack/gophkeeper/pkg/crypt/mock"
-	jwtmock "github.com/smanhack/gophkeeper/pkg/jwt/mock"
+	servicemock "github.com/smanhack/gophkeeper/internal/server/service/mock"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
 
 var (
@@ -34,7 +32,7 @@ func TestDataVaultHandler_RegisterService(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 
-	dataVaultMock := storagemock.NewMockDataVaultServerStorage(ctl)
+	dataVaultMock := servicemock.NewMockDataVaultServerStorage(ctl)
 
 	tests := []struct {
 		name string
@@ -137,7 +135,7 @@ func TestDataVaultHandler_QueryDataByCategory(t *testing.T) {
 func dataVaultTestClient(t *testing.T, ctl *gomock.Controller, uid uuid.UUID) (pb.DataVaultClient, chan<- struct{}) {
 	done := make(chan struct{})
 
-	dataVaultStorageMock := storagemock.NewMockDataVaultServerStorage(ctl)
+	dataVaultStorageMock := servicemock.NewMockDataVaultServerStorage(ctl)
 
 	dataVaultStorageMock.EXPECT().StoreData(gomock.Any(), gomock.Any()).AnyTimes().Return(model.DataRecord{}, nil)
 
@@ -174,11 +172,11 @@ func dataVaultTestClient(t *testing.T, ctl *gomock.Controller, uid uuid.UUID) (p
 			{ID: 2},
 		}, nil)
 
-	jwtM := jwtmock.NewMockManager(ctl)
+	jwtM := servicemock.NewMockJWTManager(ctl)
 	jwtM.EXPECT().Issue(uid.String()).AnyTimes().Return("token", nil)
 	jwtM.EXPECT().Decode(gomock.Any()).AnyTimes().Return(uid.String(), nil)
 
-	cryptM := cryptmock.NewMockCrypter(ctl)
+	cryptM := servicemock.NewMockCrypter(ctl)
 	cryptM.EXPECT().Encode(gomock.Any()).AnyTimes().Return("token")
 	cryptM.EXPECT().Decode(gomock.Any()).AnyTimes().Return(uid.String(), nil)
 

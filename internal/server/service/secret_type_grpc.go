@@ -7,17 +7,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
-	"github.com/smanhack/gophkeeper/internal/server/storage"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
 
 type categoryHandler struct {
 	pb.UnimplementedDataCategoryServer
 
-	storage storage.CategoryServerStorage
+	storage CategoryServerStorage
 }
 
-func NewCategoryHandler(s storage.CategoryServerStorage) *categoryHandler {
+func NewCategoryHandler(s CategoryServerStorage) *categoryHandler {
 	return &categoryHandler{storage: s}
 }
 

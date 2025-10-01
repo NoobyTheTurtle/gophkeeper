@@ -1,11 +1,13 @@
 package prompt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,19 +17,41 @@ import (
 )
 
 type Executor struct {
-	app *app.App
+	app        *app.App
+	currentCtx context.Context
+	mu         sync.RWMutex
 }
 
-func NewExecutor() *Executor {
-	appL, err := app.NewApp()
+func (e *Executor) getContext() context.Context {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.currentCtx
+}
+
+func (e *Executor) updateContext(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.currentCtx = ctx
+}
+
+// NewExecutor creates executor and returns Execute function
+func NewExecutor(ctx context.Context, cancel context.CancelFunc) func(string) {
+	appL, appCancel, err := app.NewApp(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	return &Executor{app: appL}
+	e := &Executor{
+		app:        appL,
+		currentCtx: ctx,
+	}
+
+	return func(s string) {
+		e.execute(s, appCancel, cancel)
+	}
 }
 
-func (e *Executor) Execute(s string) {
+func (e *Executor) execute(s string, appCancel, mainCancel context.CancelFunc) {
 	var isForce bool
 
 	setCommand, options := getCommandArgsAndOptions(s)
@@ -35,9 +59,11 @@ func (e *Executor) Execute(s string) {
 		isForce = true
 	}
 
+	ctx := e.getContext()
+
 	switch setCommand[0] {
 	case "login":
-		if err := e.login(setCommand); err != nil {
+		if err := e.login(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -45,7 +71,7 @@ func (e *Executor) Execute(s string) {
 		fmt.Println("successfully authorized")
 		return
 	case "register":
-		if err := e.register(setCommand); err != nil {
+		if err := e.register(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -54,7 +80,7 @@ func (e *Executor) Execute(s string) {
 
 		return
 	case "delete-user":
-		if err := e.deleteUser(); err != nil {
+		if err := e.deleteUser(ctx); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -63,7 +89,7 @@ func (e *Executor) Execute(s string) {
 
 		return
 	case "logout":
-		if err := e.logout(); err != nil {
+		if err := e.logout(ctx); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -71,7 +97,7 @@ func (e *Executor) Execute(s string) {
 		fmt.Println("you successfully logged out")
 		return
 	case "types":
-		types, err := e.types()
+		types, err := e.types(ctx)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -83,41 +109,41 @@ func (e *Executor) Execute(s string) {
 
 		return
 	case "create-auth":
-		if err := e.createAuth(setCommand); err != nil {
+		if err := e.createAuth(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 		return
 	case "create-text":
-		if err := e.createText(setCommand); err != nil {
+		if err := e.createText(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 
 		return
 	case "create-binary":
-		if err := e.createBinary(setCommand); err != nil {
+		if err := e.createBinary(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 
 		return
 	case "create-card":
-		if err := e.createCard(setCommand); err != nil {
+		if err := e.createCard(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 
 		return
 	case "delete-secret":
-		if err := e.deleteSecret(setCommand); err != nil {
+		if err := e.deleteSecret(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 
 		return
 	case "get-secrets-by-type":
-		list, err := e.getSecretsByTypeId(setCommand)
+		list, err := e.getSecretsByTypeId(ctx, setCommand)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -129,7 +155,7 @@ func (e *Executor) Execute(s string) {
 
 		return
 	case "get-secret":
-		secret, err := e.getSecret(setCommand)
+		secret, err := e.getSecret(ctx, setCommand)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -139,27 +165,28 @@ func (e *Executor) Execute(s string) {
 
 		return
 	case "get-secret-binary":
-		if err := e.getSecretBinary(setCommand); err != nil {
+		if err := e.getSecretBinary(ctx, setCommand); err != nil {
 			fmt.Println(err)
 			return
 		}
 		return
 	case "edit-secret":
-		if err := e.editSecret(setCommand, isForce); err != nil {
+		if err := e.editSecret(ctx, setCommand, isForce); err != nil {
 			fmt.Println(err)
 			return
 		}
 
 		return
 	case "exit":
-		e.app.Cancel()
+		appCancel()
+		mainCancel()
 		e.app.Cron.Stop()
 
 		os.Exit(0)
 	}
 }
 
-func (e *Executor) login(args []string) error {
+func (e *Executor) login(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 1:
 		return fmt.Errorf("validation error: Password is missing")
@@ -169,7 +196,8 @@ func (e *Executor) login(args []string) error {
 
 	account := model.Account{Username: args[1], Credential: args[2]}
 
-	if err := e.app.AccountService.Authenticate(account); err != nil {
+	newCtx, err := e.app.AccountService.Authenticate(ctx, account)
+	if err != nil {
 		st, _ := status.FromError(err)
 
 		switch st.Code() {
@@ -180,14 +208,16 @@ func (e *Executor) login(args []string) error {
 		}
 	}
 
-	e.app.Syncer.SyncAll()
+	e.updateContext(newCtx)
+
+	e.app.Syncer.SyncAll(newCtx)
 
 	go e.app.Cron.Run()
 
 	return nil
 }
 
-func (e *Executor) register(args []string) error {
+func (e *Executor) register(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 1:
 		return fmt.Errorf("validation error: Password is missing")
@@ -196,7 +226,8 @@ func (e *Executor) register(args []string) error {
 	}
 
 	account := model.Account{Username: args[1], Credential: args[2]}
-	if err := e.app.AccountService.SignUp(account); err != nil {
+	newCtx, err := e.app.AccountService.SignUp(ctx, account)
+	if err != nil {
 		switch status.Code(err) {
 		case codes.InvalidArgument:
 			return fmt.Errorf("error: data is invalid or user already exists")
@@ -205,15 +236,23 @@ func (e *Executor) register(args []string) error {
 		}
 	}
 
+	e.updateContext(newCtx)
+
 	return nil
 }
 
-func (e *Executor) deleteUser() error {
-	return e.app.AccountService.Remove()
+func (e *Executor) deleteUser(ctx context.Context) error {
+	newCtx, err := e.app.AccountService.Remove(ctx)
+	if err != nil {
+		return err
+	}
+	e.updateContext(newCtx)
+	return nil
 }
 
-func (e *Executor) logout() error {
-	e.app.AccountService.Logout()
+func (e *Executor) logout(ctx context.Context) error {
+	newCtx := e.app.AccountService.Logout(ctx)
+	e.updateContext(newCtx)
 
 	e.app.Cron.Stop()
 
@@ -222,8 +261,8 @@ func (e *Executor) logout() error {
 	return nil
 }
 
-func (e *Executor) types() ([]model.DataCategory, error) {
-	categories, err := e.app.CategoryService.List()
+func (e *Executor) types(ctx context.Context) ([]model.DataCategory, error) {
+	categories, err := e.app.CategoryService.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +278,7 @@ func (e *Executor) types() ([]model.DataCategory, error) {
 	return models, nil
 }
 
-func (e *Executor) createAuth(args []string) error {
+func (e *Executor) createAuth(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 2:
 		return fmt.Errorf("validation error: Password is missing")
@@ -261,14 +300,14 @@ func (e *Executor) createAuth(args []string) error {
 		return errMarshal
 	}
 
-	if err := e.app.DataVaultService.StoreData(m.Name, 1, string(cont)); err != nil {
+	if err := e.app.DataVaultService.StoreData(ctx, m.Name, 1, string(cont)); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (e *Executor) createText(args []string) error {
+func (e *Executor) createText(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 1:
 		return fmt.Errorf("validation error: Text is missing")
@@ -287,14 +326,14 @@ func (e *Executor) createText(args []string) error {
 		return errMarshal
 	}
 
-	if err := e.app.DataVaultService.StoreData(m.Name, 2, string(marshal)); err != nil {
+	if err := e.app.DataVaultService.StoreData(ctx, m.Name, 2, string(marshal)); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (e *Executor) createBinary(args []string) error {
+func (e *Executor) createBinary(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 1:
 		return fmt.Errorf("validation error: Filepath is missing")
@@ -323,7 +362,7 @@ func (e *Executor) createBinary(args []string) error {
 		return errData
 	}
 
-	errCreate := e.app.DataVaultService.StoreData(m.Name, m.RecordType, string(data))
+	errCreate := e.app.DataVaultService.StoreData(ctx, m.Name, m.RecordType, string(data))
 	if errCreate != nil {
 		return errCreate
 	}
@@ -331,7 +370,7 @@ func (e *Executor) createBinary(args []string) error {
 	return nil
 }
 
-func (e *Executor) createCard(args []string) error {
+func (e *Executor) createCard(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 3:
 		return fmt.Errorf("validation error: Due date is missing")
@@ -356,14 +395,14 @@ func (e *Executor) createCard(args []string) error {
 		return er
 	}
 
-	if err := e.app.DataVaultService.StoreData(cardModel.Name, cardModel.RecordType, string(cont)); err != nil {
+	if err := e.app.DataVaultService.StoreData(ctx, cardModel.Name, cardModel.RecordType, string(cont)); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (e *Executor) deleteSecret(args []string) error {
+func (e *Executor) deleteSecret(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 0:
 		return fmt.Errorf("validation error: Secret ID is missing")
@@ -374,14 +413,14 @@ func (e *Executor) deleteSecret(args []string) error {
 		return convErr
 	}
 
-	if err := e.app.DataVaultService.RemoveData(id); err != nil {
+	if err := e.app.DataVaultService.RemoveData(ctx, id); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (e *Executor) getSecretsByTypeId(args []string) ([]model.SecretList, error) {
+func (e *Executor) getSecretsByTypeId(ctx context.Context, args []string) ([]model.SecretList, error) {
 	switch len(args) - 1 {
 	case 0:
 		return nil, fmt.Errorf("validation error: Secret Type ID is missing")
@@ -392,7 +431,7 @@ func (e *Executor) getSecretsByTypeId(args []string) ([]model.SecretList, error)
 		return nil, convErr
 	}
 
-	list, err := e.app.DataVaultService.GetListOfDataRecords(id)
+	list, err := e.app.DataVaultService.GetListOfDataRecords(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +447,7 @@ func (e *Executor) getSecretsByTypeId(args []string) ([]model.SecretList, error)
 	return models, nil
 }
 
-func (e *Executor) getSecret(args []string) (interface{}, error) {
+func (e *Executor) getSecret(ctx context.Context, args []string) (interface{}, error) {
 	switch len(args) - 1 {
 	case 0:
 		return nil, fmt.Errorf("validation error: Secret ID is missing")
@@ -419,7 +458,7 @@ func (e *Executor) getSecret(args []string) (interface{}, error) {
 		return nil, convErr
 	}
 
-	secret, err := e.app.DataVaultService.GetDataRecord(id)
+	secret, err := e.app.DataVaultService.GetDataRecord(ctx, id)
 	if err != nil {
 		st, _ := status.FromError(err)
 		switch st.Code() {
@@ -433,7 +472,7 @@ func (e *Executor) getSecret(args []string) (interface{}, error) {
 	return secret, nil
 }
 
-func (e *Executor) getSecretBinary(args []string) error {
+func (e *Executor) getSecretBinary(ctx context.Context, args []string) error {
 	switch len(args) - 1 {
 	case 0:
 		return fmt.Errorf("validation error: Secret ID and Path is missing")
@@ -446,7 +485,7 @@ func (e *Executor) getSecretBinary(args []string) error {
 		return errConv
 	}
 
-	err := e.app.DataVaultService.GetBinaryDataRecord(id, args[2])
+	err := e.app.DataVaultService.GetBinaryDataRecord(ctx, id, args[2])
 	if err != nil {
 		return err
 	}
@@ -454,7 +493,7 @@ func (e *Executor) getSecretBinary(args []string) error {
 	return nil
 }
 
-func (e *Executor) editSecret(args []string, isForce bool) error {
+func (e *Executor) editSecret(ctx context.Context, args []string, isForce bool) error {
 	var (
 		recordType int
 		id         int
@@ -548,7 +587,7 @@ func (e *Executor) editSecret(args []string, isForce bool) error {
 		return fmt.Errorf("validation error: Secret ID, Title, Secret Type ID and secret fields is missing")
 	}
 
-	if err := e.app.DataVaultService.UpdateData(id, args[2], recordType, string(converted), isForce); err != nil {
+	if err := e.app.DataVaultService.UpdateData(ctx, id, args[2], recordType, string(converted), isForce); err != nil {
 		st, _ := status.FromError(err)
 
 		fmt.Println(st.Message())
@@ -556,7 +595,7 @@ func (e *Executor) editSecret(args []string, isForce bool) error {
 		if st.Code() == codes.FailedPrecondition {
 			fmt.Println("starting re-sync")
 
-			e.app.Syncer.SyncAll()
+			e.app.Syncer.SyncAll(ctx)
 
 			fmt.Println("re-sync ended")
 		}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,26 +10,22 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/client/model"
-	"github.com/smanhack/gophkeeper/internal/client/storage"
-	"github.com/smanhack/gophkeeper/pkg/crypt"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
 
 type DataVaultClientService struct {
-	glCtx   *model.GlobalContext
 	client  pb.DataVaultClient
-	storage storage.Memorier
-	crypt   crypt.Crypter
-	syncer  storage.Syncer
+	storage Memorier
+	crypt   Crypter
+	syncer  Syncer
 }
 
 // NewDataVaultClientService - creates new DataVaultClientService.
 func NewDataVaultClientService(
-	glCtx *model.GlobalContext, client pb.DataVaultClient, st storage.Memorier, cr crypt.Crypter, sr storage.Syncer,
+	client pb.DataVaultClient, st Memorier, cr Crypter, sr Syncer,
 ) *DataVaultClientService {
 	return &DataVaultClientService{
-		glCtx:   glCtx,
 		client:  client,
 		storage: st,
 		crypt:   cr,
@@ -36,13 +33,13 @@ func NewDataVaultClientService(
 	}
 }
 
-func (s *DataVaultClientService) GetListOfDataRecords(id int) ([]*pb.DataRecord, error) {
+func (s *DataVaultClientService) GetListOfDataRecords(ctx context.Context, id int) ([]*pb.DataRecord, error) {
 	list := s.storage.GetDataRecordList(id)
 	if len(list) > 0 {
 		return list, nil
 	}
 
-	result, err := s.client.QueryDataByCategory(s.glCtx.Ctx, &pb.QueryDataByCategoryRequest{TypeId: uint32(id)})
+	result, err := s.client.QueryDataByCategory(ctx, &pb.QueryDataByCategoryRequest{TypeId: uint32(id)})
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +48,8 @@ func (s *DataVaultClientService) GetListOfDataRecords(id int) ([]*pb.DataRecord,
 }
 
 // GetBinaryDataRecord - get binary data from server and stores it into file.
-func (s *DataVaultClientService) GetBinaryDataRecord(id int, location string) error {
-	res, err := s.client.FetchData(s.glCtx.Ctx, &pb.FetchDataRequest{Id: int32(id)})
+func (s *DataVaultClientService) GetBinaryDataRecord(ctx context.Context, id int, location string) error {
+	res, err := s.client.FetchData(ctx, &pb.FetchDataRequest{Id: int32(id)})
 	if err != nil {
 		return err
 	}
@@ -85,14 +82,14 @@ func (s *DataVaultClientService) GetBinaryDataRecord(id int, location string) er
 }
 
 // GetDataRecord - attempts to get data record from memory by its id, if nothing is found then makes gRPC request to server.
-func (s *DataVaultClientService) GetDataRecord(id int) (interface{}, error) {
+func (s *DataVaultClientService) GetDataRecord(ctx context.Context, id int) (interface{}, error) {
 	data, ok := s.storage.FindInStorage(id)
 
 	if ok {
 		return data, nil
 	}
 
-	result, err := s.client.FetchData(s.glCtx.Ctx, &pb.FetchDataRequest{Id: int32(id)})
+	result, err := s.client.FetchData(ctx, &pb.FetchDataRequest{Id: int32(id)})
 	if err != nil {
 		return nil, err
 	}
@@ -125,10 +122,10 @@ func (s *DataVaultClientService) GetDataRecord(id int) (interface{}, error) {
 }
 
 // StoreData - creates new data record on the server and then makes re-sync memory storage.
-func (s *DataVaultClientService) StoreData(name string, recordType int, payload string) error {
+func (s *DataVaultClientService) StoreData(ctx context.Context, name string, recordType int, payload string) error {
 	payloadT := []byte(s.crypt.Encode(payload))
 
-	result, err := s.client.StoreData(s.glCtx.Ctx, &pb.StoreDataRequest{
+	result, err := s.client.StoreData(ctx, &pb.StoreDataRequest{
 		Name:    name,
 		Type:    uint32(recordType),
 		Payload: payloadT,
@@ -139,14 +136,14 @@ func (s *DataVaultClientService) StoreData(name string, recordType int, payload 
 
 	fmt.Println("created new data record with ID:", result.Id)
 
-	s.syncer.SyncAll()
+	s.syncer.SyncAll(ctx)
 
 	return nil
 }
 
 // RemoveData - removes a data record from server and then makes re-sync memory storage.
-func (s *DataVaultClientService) RemoveData(id int) error {
-	_, err := s.client.RemoveData(s.glCtx.Ctx, &pb.RemoveDataRequest{Id: uint32(id)})
+func (s *DataVaultClientService) RemoveData(ctx context.Context, id int) error {
+	_, err := s.client.RemoveData(ctx, &pb.RemoveDataRequest{Id: uint32(id)})
 	if err != nil {
 		return err
 	}
@@ -154,14 +151,14 @@ func (s *DataVaultClientService) RemoveData(id int) error {
 	fmt.Println("successfully deleted data record")
 
 	s.storage.ResetStorage()
-	s.syncer.SyncAll()
+	s.syncer.SyncAll(ctx)
 
 	return nil
 }
 
-func (s *DataVaultClientService) UpdateData(id int, name string, recordType int, payload string, isForce bool) error {
+func (s *DataVaultClientService) UpdateData(ctx context.Context, id int, name string, recordType int, payload string, isForce bool) error {
 	var updatedAt time.Time
-	localRecord, _ := s.GetDataRecord(id)
+	localRecord, _ := s.GetDataRecord(ctx, id)
 
 	switch record := localRecord.(type) {
 	case model.TextSecret:
@@ -178,7 +175,7 @@ func (s *DataVaultClientService) UpdateData(id int, name string, recordType int,
 	payloadT := []byte(s.crypt.Encode(payload))
 
 	_, err := s.client.UpdateData(
-		s.glCtx.Ctx, &pb.UpdateDataRequest{
+		ctx, &pb.UpdateDataRequest{
 			Id:        uint32(id),
 			Name:      name,
 			Type:      uint32(recordType),
@@ -193,7 +190,7 @@ func (s *DataVaultClientService) UpdateData(id int, name string, recordType int,
 
 	fmt.Println("successfully updated data record")
 
-	s.syncer.SyncAll()
+	s.syncer.SyncAll(ctx)
 
 	return nil
 }

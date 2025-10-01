@@ -1,4 +1,3 @@
-//go:generate mockgen -source=./jwt.go -destination=./mock/jwt.go -package=jwtmock
 package jwt
 
 import (
@@ -16,11 +15,6 @@ type JWT struct {
 
 type Claims struct {
 	jwt.RegisteredClaims
-}
-
-type Manager interface {
-	Issue(id string) (string, error)
-	Decode(token string) (string, error)
 }
 
 // NewJWT - creates new instance of JWT.

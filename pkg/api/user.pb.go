@@ -4,7 +4,7 @@
 // 	protoc        v6.32.0
 // source: user.proto
 
-package proto
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -310,7 +310,7 @@ const file_user_proto_rawDesc = "" +
 	"\aAccount\x125\n" +
 	"\x06SignUp\x12\x14.proto.SignUpRequest\x1a\x15.proto.SignUpResponse\x127\n" +
 	"\fAuthenticate\x12\x12.proto.AuthRequest\x1a\x13.proto.AuthResponse\x125\n" +
-	"\x06Remove\x12\x14.proto.RemoveRequest\x1a\x15.proto.RemoveResponseB*Z(github.com/smanhack/gophkeeper/api/protob\x06proto3"
+	"\x06Remove\x12\x14.proto.RemoveRequest\x1a\x15.proto.RemoveResponseB(Z&github.com/smanhack/gophkeeper/pkg/apib\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once

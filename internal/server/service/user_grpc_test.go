@@ -6,31 +6,29 @@ import (
 	"net"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/server/middleware/auth"
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	storagemock "github.com/smanhack/gophkeeper/internal/server/storage/mock"
-	cryptmock "github.com/smanhack/gophkeeper/pkg/crypt/mock"
+	servicemock "github.com/smanhack/gophkeeper/internal/server/service/mock"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 	"github.com/smanhack/gophkeeper/pkg/errorx"
-	jwtmock "github.com/smanhack/gophkeeper/pkg/jwt/mock"
 )
 
 func Test_accountHandler_RegisterService(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 
-	accountMock := storagemock.NewMockAccountServerStorage(ctl)
-	jwtMock := jwtmock.NewMockManager(ctl)
-	cryptMock := cryptmock.NewMockCrypter(ctl)
+	accountMock := servicemock.NewMockAccountServerStorage(ctl)
+	jwtMock := servicemock.NewMockJWTManager(ctl)
+	cryptMock := servicemock.NewMockCrypter(ctl)
 
 	tests := []struct {
 		name string
@@ -113,7 +111,7 @@ func Test_accountHandler_Remove(t *testing.T) {
 func accountTestClientNoAuth(t *testing.T, ctl *gomock.Controller, uid uuid.UUID) (pb.AccountClient, chan<- struct{}) {
 	done := make(chan struct{})
 
-	accountStorageMock := storagemock.NewMockAccountServerStorage(ctl)
+	accountStorageMock := servicemock.NewMockAccountServerStorage(ctl)
 
 	accountStorageMock.
 		EXPECT().
@@ -139,10 +137,10 @@ func accountTestClientNoAuth(t *testing.T, ctl *gomock.Controller, uid uuid.UUID
 		AnyTimes().
 		Return(model.Account{ID: &uid, Username: "test1", Credential: "pass"}, nil)
 
-	jwtM := jwtmock.NewMockManager(ctl)
+	jwtM := servicemock.NewMockJWTManager(ctl)
 	jwtM.EXPECT().Issue(uid.String()).AnyTimes().Return("token", nil)
 
-	cryptM := cryptmock.NewMockCrypter(ctl)
+	cryptM := servicemock.NewMockCrypter(ctl)
 	cryptM.EXPECT().Encode(gomock.Any()).AnyTimes().Return("token")
 
 	l, err := net.Listen("tcp", "localhost:0")
@@ -182,7 +180,7 @@ func accountTestClientNoAuth(t *testing.T, ctl *gomock.Controller, uid uuid.UUID
 func accountTestClientWithAuth(t *testing.T, ctl *gomock.Controller, uid uuid.UUID) (pb.AccountClient, chan<- struct{}) {
 	done := make(chan struct{})
 
-	accountStorageMock := storagemock.NewMockAccountServerStorage(ctl)
+	accountStorageMock := servicemock.NewMockAccountServerStorage(ctl)
 	accountStorageMock.
 		EXPECT().
 		RemoveAccount(
@@ -192,11 +190,11 @@ func accountTestClientWithAuth(t *testing.T, ctl *gomock.Controller, uid uuid.UU
 		AnyTimes().
 		Return(model.Account{}, nil)
 
-	jwtM := jwtmock.NewMockManager(ctl)
+	jwtM := servicemock.NewMockJWTManager(ctl)
 	jwtM.EXPECT().Issue(uid.String()).AnyTimes().Return("token", nil)
 	jwtM.EXPECT().Decode(gomock.Any()).AnyTimes().Return(uid.String(), nil)
 
-	cryptM := cryptmock.NewMockCrypter(ctl)
+	cryptM := servicemock.NewMockCrypter(ctl)
 	cryptM.EXPECT().Encode(gomock.Any()).AnyTimes().Return("token")
 	cryptM.EXPECT().Decode(gomock.Any()).AnyTimes().Return(uid.String(), nil)
 

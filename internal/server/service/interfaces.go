@@ -1,9 +1,15 @@
-package storage
+package service
+
+//go:generate mockgen -package=mock -destination=mock/service_mock.go . AccountServerStorage,CategoryServerStorage,DataVaultServerStorage,Crypter,JWTManager
 
 import (
 	"context"
 
 	"github.com/smanhack/gophkeeper/internal/server/model"
+	"github.com/smanhack/gophkeeper/internal/server/service/mock"
+	"github.com/smanhack/gophkeeper/internal/server/storage/postgres"
+	"github.com/smanhack/gophkeeper/pkg/crypt"
+	"github.com/smanhack/gophkeeper/pkg/jwt"
 )
 
 type AccountServerStorage interface {
@@ -32,3 +38,30 @@ type DataVaultServerStorage interface {
 	// QueryDataByCategory - returns a list of []model.DataRecord from storage.
 	QueryDataByCategory(ctx context.Context, secretType model.DataCategory, user model.Account) ([]model.DataRecord, error)
 }
+
+type Crypter interface {
+	Encode(payload string) string
+	Decode(sha string) (string, error)
+}
+
+type JWTManager interface {
+	Issue(id string) (string, error)
+	Decode(token string) (string, error)
+}
+
+var (
+	_ AccountServerStorage = (*postgres.AccountStore)(nil)
+	_ AccountServerStorage = (*mock.MockAccountServerStorage)(nil)
+
+	_ CategoryServerStorage = (*postgres.CategoryStore)(nil)
+	_ CategoryServerStorage = (*mock.MockCategoryServerStorage)(nil)
+
+	_ DataVaultServerStorage = (*postgres.DataVaultStore)(nil)
+	_ DataVaultServerStorage = (*mock.MockDataVaultServerStorage)(nil)
+
+	_ Crypter = (*crypt.Сrypt)(nil)
+	_ Crypter = (*mock.MockCrypter)(nil)
+
+	_ JWTManager = (*jwt.JWT)(nil)
+	_ JWTManager = (*mock.MockJWTManager)(nil)
+)

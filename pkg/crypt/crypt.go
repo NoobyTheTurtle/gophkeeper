@@ -1,4 +1,3 @@
-//go:generate mockgen -source=./crypt.go -destination=./mock/crypt.go -package=cryptmock
 package crypt
 
 import (
@@ -8,11 +7,6 @@ import (
 	"fmt"
 )
 
-type Crypter interface {
-	Encode(payload string) string
-	Decode(sha string) (string, error)
-}
-
 var (
 	key = []byte{
 		4, 51, 71, 14, 63, 8, 95, 100, 44, 4, 19, 85, 57, 54, 23, 54, 26, 59, 24, 44, 47, 52, 63, 1, 84, 24,
@@ -21,13 +15,13 @@ var (
 	nonce = []byte{4, 51, 71, 14, 63, 8, 95, 100, 44, 4, 19, 85}
 )
 
-type crypt struct {
+type Сrypt struct {
 	aesGCM   cipher.AEAD
 	aesBlock cipher.Block
 	nonce    []byte
 }
 
-func NewCrypt() (*crypt, error) {
+func NewCrypt() (*Сrypt, error) {
 	aesBlock, errBlock := aes.NewCipher(key)
 	if errBlock != nil {
 		return nil, fmt.Errorf("error in creating new cipher: %w", errBlock)
@@ -38,14 +32,14 @@ func NewCrypt() (*crypt, error) {
 		return nil, fmt.Errorf("error in creating GCM: %w", errGCM)
 	}
 
-	return &crypt{
+	return &Сrypt{
 		aesGCM:   aesGCM,
 		aesBlock: aesBlock,
 		nonce:    nonce,
 	}, nil
 }
 
-func (c *crypt) Encode(payload string) string {
+func (c *Сrypt) Encode(payload string) string {
 	src := []byte(payload)
 
 	dst := c.aesGCM.Seal(nil, c.nonce, src, nil)
@@ -55,7 +49,7 @@ func (c *crypt) Encode(payload string) string {
 	return sha
 }
 
-func (c *crypt) Decode(sha string) (string, error) {
+func (c *Сrypt) Decode(sha string) (string, error) {
 	dst, errDecode := hex.DecodeString(sha)
 	if errDecode != nil {
 		return "", fmt.Errorf("hex decode error: %w", errDecode)

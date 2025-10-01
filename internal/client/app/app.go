@@ -7,38 +7,35 @@ import (
 	"github.com/robfig/cron/v3"
 	"google.golang.org/grpc"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/client/config"
 	"github.com/smanhack/gophkeeper/internal/client/interceptor"
-	"github.com/smanhack/gophkeeper/internal/client/model"
 	"github.com/smanhack/gophkeeper/internal/client/service"
 	"github.com/smanhack/gophkeeper/internal/client/storage"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 	"github.com/smanhack/gophkeeper/pkg/cert"
 	"github.com/smanhack/gophkeeper/pkg/crypt"
 )
 
 type App struct {
-	Cancel context.CancelFunc
-
 	DataVaultService *service.DataVaultClientService
 	CategoryService  *service.CategoryClientService
 	AccountService   *service.AccountClientService
 
-	Storage storage.Memorier
-	Syncer  storage.Syncer
+	Storage *storage.MemoryStorage
+	Syncer  *storage.Sync
 	Cron    *cron.Cron
 }
 
 // NewApp - creates Client application.
-func NewApp() (*App, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	glCtx := model.GlobalContext{Ctx: ctx, Cancel: cancel}
+func NewApp(ctx context.Context) (*App, context.CancelFunc, error) {
+	ctx, cancel := context.WithCancel(ctx)
 
 	cfg := config.NewConfig()
 
 	tlsCredential, err := cert.NewSSLConfigService().LoadClientCertificate(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error in creating tls creds: %w", err)
+		cancel()
+		return nil, nil, fmt.Errorf("error in creating tls creds: %w", err)
 	}
 
 	protectedRoutes := map[string]bool{
@@ -57,7 +54,8 @@ func NewApp() (*App, error) {
 		grpc.WithUnaryInterceptor(intercept.Unary()),
 	)
 	if errConn != nil {
-		return nil, fmt.Errorf("error in creating grpc con:%w", errConn)
+		cancel()
+		return nil, nil, fmt.Errorf("error in creating grpc con:%w", errConn)
 	}
 
 	dataVaultClient := pb.NewDataVaultClient(conn)
@@ -66,20 +64,22 @@ func NewApp() (*App, error) {
 
 	cr, errCr := crypt.NewCrypt()
 	if errCr != nil {
-		return nil, fmt.Errorf("could create crypt")
+		cancel()
+		return nil, nil, fmt.Errorf("could create crypt")
 	}
 
 	memoryStorage := storage.NewMemoryStorage()
-	syn := storage.NewSync(memoryStorage, dataVaultClient, &glCtx, cr)
+	syn := storage.NewSync(memoryStorage, dataVaultClient, cr)
 
-	dataVaultClientService := service.NewDataVaultClientService(&glCtx, dataVaultClient, memoryStorage, cr, syn)
-	accountClientService := service.NewAccountClientService(&glCtx, accountClient)
-	categoryClientService := service.NewCategoryClientService(&glCtx, categoryClient)
+	dataVaultClientService := service.NewDataVaultClientService(dataVaultClient, memoryStorage, cr, syn)
+	accountClientService := service.NewAccountClientService(accountClient)
+	categoryClientService := service.NewCategoryClientService(categoryClient)
 
 	c := cron.New()
-	_, err = c.AddFunc("* * * * *", syn.SyncAll)
+	_, err = c.AddFunc("* * * * *", func() { syn.SyncAll(ctx) })
 	if err != nil {
-		return nil, fmt.Errorf("failed to add cron job: %w", err)
+		cancel()
+		return nil, nil, fmt.Errorf("failed to add cron job: %w", err)
 	}
 
 	return &App{
@@ -89,6 +89,5 @@ func NewApp() (*App, error) {
 		Storage:          memoryStorage,
 		Syncer:           syn,
 		Cron:             c,
-		Cancel:           cancel,
-	}, nil
+	}, cancel, nil
 }

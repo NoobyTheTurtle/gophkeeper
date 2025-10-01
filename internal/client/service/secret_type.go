@@ -1,27 +1,26 @@
 package service
 
 import (
-	pb "github.com/smanhack/gophkeeper/api/proto"
-	"github.com/smanhack/gophkeeper/internal/client/model"
+	"context"
+
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
 
 type CategoryClientService struct {
-	glCtx  *model.GlobalContext
 	client pb.DataCategoryClient
 }
 
 // NewCategoryClientService - создает новый CategoryClientService.
-func NewCategoryClientService(glCtx *model.GlobalContext, client pb.DataCategoryClient) *CategoryClientService {
+func NewCategoryClientService(client pb.DataCategoryClient) *CategoryClientService {
 	return &CategoryClientService{
-		glCtx:  glCtx,
 		client: client,
 	}
 }
 
-func (s *CategoryClientService) List() (*pb.CategoryListResponse, error) {
+func (s *CategoryClientService) List(ctx context.Context) (*pb.CategoryListResponse, error) {
 	request := &pb.CategoryListRequest{}
 
-	result, err := s.client.ListCategories(s.glCtx.Ctx, request)
+	result, err := s.client.ListCategories(ctx, request)
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,7 @@
 // 	protoc        v6.32.0
 // source: secret.proto
 
-package proto
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -902,7 +902,7 @@ const file_secret_proto_rawDesc = "" +
 	"RemoveData\x12\x18.proto.RemoveDataRequest\x1a\x19.proto.RemoveDataResponse\x12A\n" +
 	"\n" +
 	"UpdateData\x12\x18.proto.UpdateDataRequest\x1a\x19.proto.UpdateDataResponse\x12\\\n" +
-	"\x13QueryDataByCategory\x12!.proto.QueryDataByCategoryRequest\x1a\".proto.QueryDataByCategoryResponseB*Z(github.com/smanhack/gophkeeper/api/protob\x06proto3"
+	"\x13QueryDataByCategory\x12!.proto.QueryDataByCategoryRequest\x1a\".proto.QueryDataByCategoryResponseB(Z&github.com/smanhack/gophkeeper/pkg/apib\x06proto3"
 
 var (
 	file_secret_proto_rawDescOnce sync.Once

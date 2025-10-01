@@ -12,20 +12,19 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/server/middleware/auth"
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	"github.com/smanhack/gophkeeper/internal/server/storage"
+	pb "github.com/smanhack/gophkeeper/pkg/api"
 	"github.com/smanhack/gophkeeper/pkg/errorx"
 )
 
 type dataVaultHandler struct {
 	pb.UnimplementedDataVaultServer
 
-	storage storage.DataVaultServerStorage
+	storage DataVaultServerStorage
 }
 
-func NewDataVaultHandler(s storage.DataVaultServerStorage) *dataVaultHandler {
+func NewDataVaultHandler(s DataVaultServerStorage) *dataVaultHandler {
 	return &dataVaultHandler{
 		storage: s,
 	}

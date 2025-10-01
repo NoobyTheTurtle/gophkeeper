@@ -4,21 +4,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/smanhack/gophkeeper/api/proto"
 	"github.com/smanhack/gophkeeper/internal/client/model"
+	proto "github.com/smanhack/gophkeeper/pkg/api"
 )
-
-type Memorier interface {
-	GetLoginPassSecret(id int) (model.LoginPassSecret, bool, error)
-	SetLoginPassSecrets([]model.LoginPassSecret)
-	GetCardSecret(id int) (model.CardSecret, bool, error)
-	SetCardSecrets([]model.CardSecret)
-	GetTextSecret(id int) (model.TextSecret, bool, error)
-	SetTextSecrets([]model.TextSecret)
-	FindInStorage(id int) (interface{}, bool)
-	GetDataRecordList(id int) []*proto.DataRecord
-	ResetStorage()
-}
 
 type MemoryStorage struct {
 	mu               sync.RWMutex

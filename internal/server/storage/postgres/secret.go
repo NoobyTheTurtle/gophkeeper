@@ -10,11 +10,8 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	"github.com/smanhack/gophkeeper/internal/server/model"
-	"github.com/smanhack/gophkeeper/internal/server/storage"
 	"github.com/smanhack/gophkeeper/pkg/errorx"
 )
-
-var _ storage.DataVaultServerStorage = (*DataVaultStore)(nil)
 
 type DataVaultStore struct {
 	conn *pgx.Conn
