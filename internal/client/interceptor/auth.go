@@ -10,11 +10,15 @@ import (
 
 type AuthInterceptor struct {
 	protectedMethods map[string]bool
+	tokenProvider    TokenProvider
 }
 
 // NewAuthInterceptor - returns an Auth interceptor
-func NewAuthInterceptor(prMethods map[string]bool) *AuthInterceptor {
-	return &AuthInterceptor{protectedMethods: prMethods}
+func NewAuthInterceptor(prMethods map[string]bool, tokenProvider TokenProvider) *AuthInterceptor {
+	return &AuthInterceptor{
+		protectedMethods: prMethods,
+		tokenProvider:    tokenProvider,
+	}
 }
 
 // Unary returns a client interceptor to authenticate unary RPC
@@ -28,17 +32,13 @@ func (a *AuthInterceptor) Unary() grpc.UnaryClientInterceptor {
 		opts ...grpc.CallOption,
 	) error {
 		if a.protectedMethods[method] {
-			var token []string
-			md, ok := metadata.FromOutgoingContext(ctx)
-			if ok {
-				token = md.Get("authorization")
-			}
+			token := a.tokenProvider.GetToken()
 
-			if len(token) == 0 {
+			if token == "" {
 				return errors.New("you have to be authorized via login first")
 			}
 
-			return invoker(ctx, method, req, reply, cc, opts...)
+			ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
 		}
 
 		return invoker(ctx, method, req, reply, cc, opts...)

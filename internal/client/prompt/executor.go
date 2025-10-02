@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,41 +17,26 @@ import (
 )
 
 type Executor struct {
-	app        *app.App
-	currentCtx context.Context
-	mu         sync.RWMutex
-}
-
-func (e *Executor) getContext() context.Context {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.currentCtx
-}
-
-func (e *Executor) updateContext(ctx context.Context) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.currentCtx = ctx
+	app *app.App
 }
 
 // NewExecutor creates executor and returns Execute function
-func NewExecutor(ctx context.Context, cancel context.CancelFunc) func(string) {
-	appL, appCancel, err := app.NewApp(ctx)
+func NewExecutor(cancel context.CancelFunc) func(string) {
+	appL, err := app.NewApp()
 	if err != nil {
 		panic(err)
 	}
 
 	e := &Executor{
-		app:        appL,
-		currentCtx: ctx,
+		app: appL,
 	}
 
 	return func(s string) {
-		e.execute(s, appCancel, cancel)
+		e.execute(s, cancel)
 	}
 }
 
-func (e *Executor) execute(s string, appCancel, mainCancel context.CancelFunc) {
+func (e *Executor) execute(s string, mainCancel context.CancelFunc) {
 	var isForce bool
 
 	setCommand, options := getCommandArgsAndOptions(s)
@@ -59,7 +44,8 @@ func (e *Executor) execute(s string, appCancel, mainCancel context.CancelFunc) {
 		isForce = true
 	}
 
-	ctx := e.getContext()
+	ctx, timeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer timeoutCancel()
 
 	switch setCommand[0] {
 	case "login":
@@ -178,7 +164,6 @@ func (e *Executor) execute(s string, appCancel, mainCancel context.CancelFunc) {
 
 		return
 	case "exit":
-		appCancel()
 		mainCancel()
 		e.app.Cron.Stop()
 
@@ -196,7 +181,7 @@ func (e *Executor) login(ctx context.Context, args []string) error {
 
 	account := model.Account{Username: args[1], Credential: args[2]}
 
-	newCtx, err := e.app.AccountService.Authenticate(ctx, account)
+	token, err := e.app.AccountService.Authenticate(ctx, account)
 	if err != nil {
 		st, _ := status.FromError(err)
 
@@ -208,9 +193,12 @@ func (e *Executor) login(ctx context.Context, args []string) error {
 		}
 	}
 
-	e.updateContext(newCtx)
+	e.app.SetToken(token)
 
-	e.app.Syncer.SyncAll(newCtx)
+	syncCtx, syncCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer syncCancel()
+
+	e.app.Syncer.SyncAll(syncCtx)
 
 	go e.app.Cron.Run()
 
@@ -226,7 +214,7 @@ func (e *Executor) register(ctx context.Context, args []string) error {
 	}
 
 	account := model.Account{Username: args[1], Credential: args[2]}
-	newCtx, err := e.app.AccountService.SignUp(ctx, account)
+	token, err := e.app.AccountService.SignUp(ctx, account)
 	if err != nil {
 		switch status.Code(err) {
 		case codes.InvalidArgument:
@@ -236,23 +224,24 @@ func (e *Executor) register(ctx context.Context, args []string) error {
 		}
 	}
 
-	e.updateContext(newCtx)
+	e.app.SetToken(token)
 
 	return nil
 }
 
 func (e *Executor) deleteUser(ctx context.Context) error {
-	newCtx, err := e.app.AccountService.Remove(ctx)
+	err := e.app.AccountService.Remove(ctx)
 	if err != nil {
 		return err
 	}
-	e.updateContext(newCtx)
+
+	e.app.SetToken("")
+
 	return nil
 }
 
 func (e *Executor) logout(ctx context.Context) error {
-	newCtx := e.app.AccountService.Logout(ctx)
-	e.updateContext(newCtx)
+	e.app.SetToken(e.app.AccountService.Logout())
 
 	e.app.Cron.Stop()
 
@@ -595,7 +584,10 @@ func (e *Executor) editSecret(ctx context.Context, args []string, isForce bool) 
 		if st.Code() == codes.FailedPrecondition {
 			fmt.Println("starting re-sync")
 
-			e.app.Syncer.SyncAll(ctx)
+			syncCtx, syncCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer syncCancel()
+
+			e.app.Syncer.SyncAll(syncCtx)
 
 			fmt.Println("re-sync ended")
 		}

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	"google.golang.org/grpc"
@@ -24,18 +26,18 @@ type App struct {
 	Storage *storage.MemoryStorage
 	Syncer  *storage.Sync
 	Cron    *cron.Cron
+
+	jwtToken string
+	mu       sync.RWMutex
 }
 
 // NewApp - creates Client application.
-func NewApp(ctx context.Context) (*App, context.CancelFunc, error) {
-	ctx, cancel := context.WithCancel(ctx)
-
+func NewApp() (*App, error) {
 	cfg := config.NewConfig()
 
 	tlsCredential, err := cert.NewSSLConfigService().LoadClientCertificate(cfg)
 	if err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("error in creating tls creds: %w", err)
+		return nil, fmt.Errorf("error in creating tls creds: %w", err)
 	}
 
 	protectedRoutes := map[string]bool{
@@ -47,15 +49,17 @@ func NewApp(ctx context.Context) (*App, context.CancelFunc, error) {
 		"/proto.DataVault/RemoveData":          true,
 		"/proto.DataVault/UpdateData":          true,
 	}
-	intercept := interceptor.NewAuthInterceptor(protectedRoutes)
+
+	app := &App{}
+
+	intercept := interceptor.NewAuthInterceptor(protectedRoutes, app)
 
 	conn, errConn := grpc.NewClient(":"+cfg.Port,
 		grpc.WithTransportCredentials(tlsCredential),
 		grpc.WithUnaryInterceptor(intercept.Unary()),
 	)
 	if errConn != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("error in creating grpc con:%w", errConn)
+		return nil, fmt.Errorf("error in creating grpc con:%w", errConn)
 	}
 
 	dataVaultClient := pb.NewDataVaultClient(conn)
@@ -64,8 +68,7 @@ func NewApp(ctx context.Context) (*App, context.CancelFunc, error) {
 
 	cr, errCr := crypt.NewCrypt()
 	if errCr != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("could create crypt")
+		return nil, fmt.Errorf("could create crypt")
 	}
 
 	memoryStorage := storage.NewMemoryStorage()
@@ -75,19 +78,37 @@ func NewApp(ctx context.Context) (*App, context.CancelFunc, error) {
 	accountClientService := service.NewAccountClientService(accountClient)
 	categoryClientService := service.NewCategoryClientService(categoryClient)
 
+	app.DataVaultService = dataVaultClientService
+	app.CategoryService = categoryClientService
+	app.AccountService = accountClientService
+	app.Storage = memoryStorage
+	app.Syncer = syn
+
 	c := cron.New()
-	_, err = c.AddFunc("* * * * *", func() { syn.SyncAll(ctx) })
+	_, err = c.AddFunc("* * * * *", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if app.GetToken() != "" {
+			syn.SyncAll(ctx)
+		}
+	})
 	if err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("failed to add cron job: %w", err)
+		return nil, fmt.Errorf("failed to add cron job: %w", err)
 	}
 
-	return &App{
-		DataVaultService: dataVaultClientService,
-		CategoryService:  categoryClientService,
-		AccountService:   accountClientService,
-		Storage:          memoryStorage,
-		Syncer:           syn,
-		Cron:             c,
-	}, cancel, nil
+	app.Cron = c
+	return app, nil
+}
+
+func (app *App) SetToken(token string) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	app.jwtToken = token
+}
+
+func (app *App) GetToken() string {
+	app.mu.RLock()
+	defer app.mu.RUnlock()
+	return app.jwtToken
 }

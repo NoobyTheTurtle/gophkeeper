@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 
-	"google.golang.org/grpc/metadata"
-
 	"github.com/smanhack/gophkeeper/internal/client/model"
 	pb "github.com/smanhack/gophkeeper/pkg/api"
 )
@@ -19,7 +17,7 @@ func NewAccountClientService(client pb.AccountClient) *AccountClientService {
 	}
 }
 
-func (u *AccountClientService) Authenticate(ctx context.Context, account model.Account) (context.Context, error) {
+func (u *AccountClientService) Authenticate(ctx context.Context, account model.Account) (string, error) {
 	request := &pb.AuthRequest{
 		Username:   account.Username,
 		Credential: account.Credential,
@@ -27,39 +25,26 @@ func (u *AccountClientService) Authenticate(ctx context.Context, account model.A
 
 	result, err := u.client.Authenticate(ctx, request)
 	if err != nil {
-		return ctx, err
+		return "", err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+result.Token)
-
-	return ctx, nil
+	return result.Token, nil
 }
 
-// SignUp - creates a new user on server. On successful creation adds authorization token to metadata in context.
-func (u *AccountClientService) SignUp(ctx context.Context, account model.Account) (context.Context, error) {
+func (u *AccountClientService) SignUp(ctx context.Context, account model.Account) (string, error) {
 	result, err := u.client.SignUp(ctx, &pb.SignUpRequest{Username: account.Username, Credential: account.Credential})
 	if err != nil {
-		return ctx, err
+		return "", err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+result.Token)
-
-	return ctx, nil
+	return result.Token, nil
 }
 
-// Remove - removes a user from server. On successful removal, removes authorization token from metadata in context.
-func (u *AccountClientService) Remove(ctx context.Context) (context.Context, error) {
+func (u *AccountClientService) Remove(ctx context.Context) error {
 	_, err := u.client.Remove(ctx, &pb.RemoveRequest{})
-	if err != nil {
-		return ctx, err
-	}
-
-	ctx = metadata.NewOutgoingContext(ctx, metadata.MD{})
-
-	return ctx, nil
+	return err
 }
 
-// Logout - removes authorization token from metadata in context.
-func (u *AccountClientService) Logout(ctx context.Context) context.Context {
-	return metadata.NewOutgoingContext(ctx, metadata.MD{})
+func (u *AccountClientService) Logout() string {
+	return ""
 }

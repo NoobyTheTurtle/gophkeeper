@@ -17,10 +17,10 @@ var (
 func main() {
 	fmt.Printf("Build version: %s\nBuild date: %s\n", BuildVersion, BuildDate)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	executeFunc := customPrompt.NewExecutor(ctx, cancel)
+	executeFunc := customPrompt.NewExecutor(cancel)
 
 	p := prompt.New(
 		executeFunc,
