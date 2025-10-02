@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/smanhack/gophkeeper/pkg/api";
+
+message SignUpRequest {
+    string username = 1;
+    string credential = 2;
+}
+
+message SignUpResponse {
+    string token = 1;
+}
+
+message AuthRequest {
+    string username = 1;
+    string credential = 2;
+}
+
+message AuthResponse {
+    string token = 1;
+}
+
+message RemoveRequest {
+}
+
+message RemoveResponse {
+}
+
+service Account {
+    rpc SignUp (SignUpRequest) returns (SignUpResponse);
+    rpc Authenticate (AuthRequest) returns (AuthResponse);
+    rpc Remove (RemoveRequest) returns (RemoveResponse);
+}

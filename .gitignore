@@ -11,12 +11,6 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
-
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
@@ -28,5 +22,59 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# Build artifacts and binaries
+build/
+bin/
+dist/
+*.tar.gz
+*.zip
+
+# Application binaries
+gophkeeper-client*
+gophkeeper-server*
+
+# Temporary directories
+.tmp/
+tmp/
+
+# TLS certificates and keys (exclude generated certificates)
+cert/*.crt
+cert/*.key
+cert/*.pem
+cert/*.csr
+cert/*.srl
+# Include generation script and config
+!cert/gen.sh
+!cert/domains.ext
+
+# Database files
+*.db
+*.sqlite
+postgres-data/
+pgdata/
+
+# Logs and runtime files
+*.log
+logs/
+pids/
+*.pid
+*.pid.lock
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# Runtime data
+*.data
+data/
+
+
